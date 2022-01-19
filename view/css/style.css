@@ -1,0 +1,137 @@
+/* yellow #F5DF4D */
+/* gray #939597 */
+body{
+    font-family: Roboto,Helvetica,Arial,sans-serif !important;
+}
+button{
+    border-width: 0px;
+}
+
+/* thead > tr :last-child{
+    width: 200px;
+} */
+
+.avata{
+    border-radius: 50%;
+}
+
+.topbar{
+    padding-top: 10px;
+    padding-bottom: 10px;
+    box-sizing: border-box;
+    border-width: 1px;
+    border-style: solid;
+    border-color: #e5e7eb;
+    background-color: #fff;
+}
+
+.menu{
+    padding-top: unset;
+    padding-bottom: unset;
+}
+
+.section_header{
+    border: 0px;
+    background-color: #506dad;
+    padding: 0px;
+    color: white;
+    /* position: fixed !important; */
+}
+
+#main_menu{
+    /* text-align: center; */
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.menu_left{
+    /* color: white; */
+    height: 100%;
+    line-height: 60px;
+    padding-left: 10px;
+    padding-right: 10px;
+    /* padding: 10px 12px 11px 12px; */
+    text-align: center;
+}
+
+.menu_active{
+    background-color: #364c7d;
+}
+
+.menu_left:hover{
+    text-decoration: none;
+    cursor: pointer;
+    background-color: #364c7d;
+}
+
+.menu_left:active{
+    background-color: #364c7d;
+}
+
+.menu_left:hover{
+    background-color: #364c7d;
+}
+
+.header_account{
+    color: #fff;
+    line-height: 60px;
+}
+
+.link_map{
+    text-transform: uppercase;
+    padding-top: 5px;
+    border-bottom: 1px solid black;
+}
+
+.text_title{
+    text-align: center;
+    width: 90%;
+    height: 100px;
+    margin: auto;
+    padding: 35px 0;
+    background-color: #fff;
+    font-size: x-large;
+    text-transform: uppercase;
+}
+
+#content{
+    padding-top: 20px;
+}
+
+.form-group > label{
+    text-transform: uppercase;
+    font-weight: bolder;
+}
+
+.sec_center{
+    padding: 30px;
+}
+
+.user_info{
+    margin-top: 30px;
+    line-height: 10px;
+    display: flex;
+    flex-direction: column;
+    text-align: center;
+    vertical-align: middle;
+    justify-content: space-between;
+    border: 1px solid #506dad;
+    border-radius: 10px;
+    max-width: 500px;
+    margin: auto;
+    padding-top: 15px;
+    padding-bottom: 15px;
+}
+.user_info > .d-flex{
+    padding: 10px;
+    text-align: center;
+    width: 70%;
+    margin: auto;
+}
+.user_info > .d-flex > div{
+    width: 50%;
+}
+
