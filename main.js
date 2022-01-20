@@ -753,7 +753,7 @@ async function create_bill_list() {
         str += `<tr>
                     <td>${format_time(item.time)}</td>
                     <td>${get_format_VND(item.total_bill)}</td>
-                    <td>${item.status}</td>
+                    <td>${get_bill_stt(item.stt)}</td>
                     <td><a target="_blank" href="https://congnghenhatrang.xyz/bill/details?id=${item.id}">Xem</a></td>
                 </tr>`;
     });
@@ -902,7 +902,7 @@ async function create_tag_name_in_group() {
         }
         div_.innerHTML = '';
         var cr_id = get_id_from_url(item.href);
-        var cr_group = Array.prototype.find.call(arr_group_tags, (f) => { return f.id.toString() == cr_id.toString() });
+        var cr_group = Array.prototype.find.call(arr_group_tags, (f) => { return f.cus_id.toString() == cr_id.toString() });
         if (cr_group && cr_group.tags != null && cr_group.tags.length > 0) {
             var lst_tag = (cr_group.tags || '').split(',');
             lst_tag.forEach((t) => {
@@ -1085,7 +1085,7 @@ async function sync_message(data_param) {
         //     arr_data.push(temp_arr);
         // }
         // arr_data.forEach(async (d) => {
-            // await save_message_after_syn(cus_id, cr_u, { js_data: d });
+        // await save_message_after_syn(cus_id, cr_u, { js_data: d });
         // });
         await save_message_after_syn(cus_id, cr_u, { js_data: data });
 
@@ -1093,6 +1093,7 @@ async function sync_message(data_param) {
 }
 
 async function save_message_after_syn(cus_id, cr_u, data) {
+    console.log(data);
     const root_url = 'https://congnghenhatrang.xyz';
     // const root_url = 'https://congnghenhatrang.xyz';
     return await fetch(`${root_url}/api/chat_group_mess/${cus_id}/${cr_u.id}`, {
@@ -1155,8 +1156,9 @@ async function config_message(i_scroll = false) {
     let latest_mess = await get_latest_mess();
     if (latest_mess) {
         //da co tin nhan
-        var existed = 0;
-        while (existed < 0) {
+        var existed = lst_old.findIndex((f) => { return (f.group_time == latest_mess.group_time && f.order == latest_mess.order) });
+        var group_time_existed = lst_old.findIndex((f) => { return (f.group_time == latest_mess.group_time) }) > -1;
+        while (existed < 0 && existed != (lst_old.length - 1) && group_time_existed == false) {
             let cr_group_detail = await get_detail_group_mess();
 
             if (!cr_group_detail) {
@@ -1199,7 +1201,7 @@ async function config_message(i_scroll = false) {
     }
     lst_mess = lst_new;
     //console.log(lst_mess);
-    if (lst_mess) {
+    if (lst_mess && lst_mess.length > 0) {
         let cr_group_detail = await get_detail_group_mess();
 
         if (!cr_group_detail) {
@@ -1299,8 +1301,10 @@ async function get_list_chat() {
                     }
                     new_item.order = order;
                     // console.log(text_container);
-                    lst_mess.push(new_item);
-                    order++;
+                    if (new_item.mes.length > 0 || (new_item.img_src && new_item.img_src.length > 0) || (new_item.file && new_item.file.length > 0)) {
+                        lst_mess.push(new_item);
+                        order++;
+                    }
                 }
             }
         }
@@ -1380,7 +1384,7 @@ async function get_list_chat_current_group_time() {
 
 }
 
-async function lock_customer(){
+async function lock_customer() {
     var name_default = document.querySelector('[role=main]').querySelector('div').querySelector('div').querySelector('div').querySelector('div').querySelector('div').children[1].querySelector('a[target="_blank"]').innerText;
     document.getElementById('real_name').value = name_default;
     document.getElementById('real_name_sub').value = name_default;
@@ -1451,7 +1455,7 @@ function replace_day_with_date(str) {
     } else if (str.includes('Tháng')) {
         time = str.substring(0, 5);
         str = str.substring(str.indexOf(',') + 2, str.length).replace(' Tháng ', '-').replace(', ', '-') + ' ' + time;
-        return str;
+        return convert_to_timestam(str);
     }
     if (day_t > 7) day_t = day_t - 7;
     now = addDays(now, (0 - day_t));
@@ -1463,8 +1467,9 @@ function replace_day_with_date(str) {
     } else {
         time = str.substring(str.length - 5, str.length);
     }
-    return `${d}-${mm}-${y} ${str}`;
+    return convert_to_timestam(`${d}-${mm}-${y} ${str}`);
 }
+
 
 function addDays(date, days) {
     var result = new Date(date);
@@ -1579,6 +1584,30 @@ async function clone_element(old_e) {
     await old_e.parentNode.replaceChild(new_element, old_e);
 }
 
+function get_bill_stt(id) {
+    let rs = 'MỚi'
+    switch (id) {
+        case -1:
+            rs = 'HỦY'
+            break;
+        case -1:
+            rs = 'HỦY'
+            break;
+        case 1:
+            rs = 'KẾ TOÁN DUYỆT'
+            break;
+        case 2:
+            rs = 'KẾ TOÁN THU TIỀN'
+            break;
+        case 3:
+            rs = 'THỦ QUỸ THU TIỀN'
+            break;
+        default:
+            break;
+    }
+    return rs;
+}
+
 function get_format_VND(str) {
     if (isNaN(str)) return str;
     if (str.toString().indexOf(',') > -1) return str;
@@ -1624,6 +1653,12 @@ async function get_current_stt_lazyLoading(cus_id) {
 async function set_current_stt_lazyLoading(stt = 1) {
     var str = `stt_${get_id_from_url()}`
     return window.localStorage.setItem('str', JSON.stringify({ stt: stt, url: window.location.href }));
+}
+
+function convert_to_timestam(new_str) {
+    //'20-1-2022 17:45' new_str
+    new_str = new_str.split(', ')[0];
+    return new Date(new_str.split(' ')[0].split('-')[2], new_str.split(' ')[0].split('-')[1] - 1, new_str.split(' ')[0].split('-')[0], new_str.split(' ')[1].split(':')[0], new_str.split(' ')[1].split(':')[1], 0, 0).getTime() / 1000;
 }
 /* helper method - end */
 
