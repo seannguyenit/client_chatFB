@@ -1,9 +1,12 @@
 'use strict'
 // var cr_url = "";
 
-init_event();
+var port = chrome.runtime.connect({ name: "connect_chat_app" });
+
+port.postMessage({ type: 'data', name: 'init' });
 
 async function init_event() {
+    // console.log(port);
     var rs = await add_event();
     if (!rs) {
         alert('Không thể kết nối máy chủ !');
@@ -21,7 +24,7 @@ async function add_event() {
     // console.time();
     while (err.length > 0 && count < 10) {
         try {
-            let w = await waitingForNext(1000);
+            await waitingForNext(1000);
             console.log(`Kết nối lần ${count} ...`);
             // document.querySelector('[role=navigation]').querySelector('div').addEventListener('click', (e) => {
             //     force_to_setup();
@@ -334,7 +337,7 @@ async function set_up_environment() {
         //load all tag_name
         var lst_tag = await tag_name_get_all();
         var tn_str = await create_select_tagname(lst_tag);
-        var tag_p = document.querySelector('form').parentElement.parentElement.parentElement;
+        var tag_p = document.querySelectorAll('[role=textbox]')[0].parentElement.parentElement.parentElement.parentElement.parentElement.parentElement.parentElement.parentElement;
         if (tag_p && !document.getElementById('tag_list')) {
             var new_d = document.createElement('div');
             new_d.innerHTML = tn_str;
@@ -501,8 +504,15 @@ function get_chat_url(cus_id) {
 async function search_group(key, tag_id) {
     key = removeVietnameseTones(key, false);
     let cr_u = await get_cr_user();
-    const root_url = 'https://congnghenhatrang.xyz';
-    return await fetch(`${root_url}/api/search_group/${cr_u.id}/${tag_id}/${key.length == 0 ? '0' : key}` /*, options */)
+    var data = { user_id: cr_u.id, tag_id: tag_id, key: (key.length == 0 ? '0' : key) }
+    const root_url = 'http://localhost:3000';
+    return await fetch(`${root_url}/api/search_group`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    } /*, options */)
         .then((response) => response.json())
         .then((data) => {
             return data;
@@ -693,7 +703,7 @@ async function save_user_tag() {
 }
 
 async function get_acc_same_group() {
-    const root_url = 'https://congnghenhatrang.xyz';
+    const root_url = 'http://localhost:3000';
     let cr_u = await get_cr_user();
     return await fetch(`${root_url}/api/acc_same/${cr_u.id}` /*, options */)
         .then((response) => response.json())
@@ -754,7 +764,7 @@ async function create_bill_list() {
                     <td>${format_time(item.time)}</td>
                     <td>${get_format_VND(item.total_bill)}</td>
                     <td>${get_bill_stt(item.stt)}</td>
-                    <td><a target="_blank" href="https://congnghenhatrang.xyz/bill/details?id=${item.id}">Xem</a></td>
+                    <td><a target="_blank" href="http://localhost:3000/bill/details?id=${item.id}">Xem</a></td>
                 </tr>`;
     });
     str += `</tbody>
@@ -891,10 +901,11 @@ async function create_tag_name_in_group() {
     var arr_group_tags = await get_group_tags_name(lst_.join(','));
 
     lst_a2.forEach((item) => {
+        // if (item.children[0].children[1]) {
         var div_ = item.querySelector('[data-gid]');
         if (!div_) {
             var id_g = get_id_from_url(item.href);
-            var place_ = item.children[0].children[1].children[0].children[0].children[0].children[0];
+            var place_ = item.children[0].children[0]
             div_ = document.createElement('div');
             div_.dataset.gid = `${id_g}`;
             div_.classList.add('chat_group_tags');
@@ -907,9 +918,10 @@ async function create_tag_name_in_group() {
             var lst_tag = (cr_group.tags || '').split(',');
             lst_tag.forEach((t) => {
                 var cr_t = Array.prototype.find.call(lst_all_tag_name, (c) => { return c.id.toString() == t })
-                div_.innerHTML += `<div class="tags_details" data-tag_id="${cr_group.id}_${t}" style="background-color:${cr_t.color}"></div>`
+                div_.innerHTML += `<div class="tags_details" data-tag_id="${cr_group.cus_id}_${t}" style="background-color:${cr_t.color}"></div>`
             });
         }
+        // }
     });
 }
 
@@ -923,7 +935,7 @@ async function create_tag_name_in_group() {
  * @returns list all product
  */
 async function product_get_all() {
-    const root_url = 'https://congnghenhatrang.xyz';
+    const root_url = 'http://localhost:3000';
     return await fetch(`${root_url}/api/product` /*, options */)
         .then((response) => response.json())
         .then((data) => {
@@ -938,7 +950,7 @@ async function product_get_all() {
 async function get_all_bill() {
     let url = location.href;
     var cus_id = get_id_from_url(url);
-    const root_url = 'https://congnghenhatrang.xyz';
+    const root_url = 'http://localhost:3000';
     return await fetch(`${root_url}/api/bill/${cus_id}` /*, options */)
         .then((response) => response.json())
         .then((data) => {
@@ -951,7 +963,7 @@ async function get_all_bill() {
 }
 
 async function tag_name_get_all() {
-    const root_url = 'https://congnghenhatrang.xyz';
+    const root_url = 'http://localhost:3000';
     return await fetch(`${root_url}/api/tag_name` /*, options */)
         .then((response) => response.json())
         .then((data) => {
@@ -969,7 +981,7 @@ async function tag_name_get_all() {
 async function get_group_tags_name(ids) {
     let cr_u = await get_cr_user();
     if (cr_u && cr_u.id) {
-        const root_url = 'https://congnghenhatrang.xyz';
+        const root_url = 'http://localhost:3000';
         return await fetch(`${root_url}/api/chat_group_tags_name/${ids}` /*, options */)
             .then((response) => response.json())
             .then((data) => {
@@ -990,7 +1002,7 @@ async function get_detail_group_mess() {
     let url = location.href;
     var cus_id = get_id_from_url(url);
     if (cr_u && cr_u.id) {
-        const root_url = 'https://congnghenhatrang.xyz';
+        const root_url = 'http://localhost:3000';
         return await fetch(`${root_url}/api/chat_group_details/${cr_u.id}/${cus_id}` /*, options */)
             .then((response) => response.json())
             .then((data) => {
@@ -1015,7 +1027,7 @@ async function save_chat_group(data) {
     let url = location.href;
     var cus_id = get_id_from_url(url);
     if (cr_u && cr_u.id) {
-        const root_url = 'https://congnghenhatrang.xyz';
+        const root_url = 'http://localhost:3000';
         return await fetch(`${root_url}/api/chat_group_details/${cr_u.id}/${cus_id}`, {
             method: 'PUT', // or 'PUT'
             headers: {
@@ -1038,7 +1050,7 @@ async function checkout_bill(data, bill_code, trade_code, cmoney) {
     let url = location.href;
     var cus_id = get_id_from_url(url);
     if (cr_u && cr_u.id) {
-        const root_url = 'https://congnghenhatrang.xyz';
+        const root_url = 'http://localhost:3000';
         return await fetch(`${root_url}/api/chat_group_details/${cr_u.id}/${cus_id}/${bill_code}/${trade_code}/${cmoney}`, {
             method: 'POST', // or 'PUT'
             headers: {
@@ -1057,7 +1069,7 @@ async function checkout_bill(data, bill_code, trade_code, cmoney) {
 }
 
 async function tag_name_get_all() {
-    const root_url = 'https://congnghenhatrang.xyz';
+    const root_url = 'http://localhost:3000';
     return await fetch(`${root_url}/api/tag_name` /*, options */)
         .then((response) => response.json())
         .then((data) => {
@@ -1094,8 +1106,8 @@ async function sync_message(data_param) {
 
 async function save_message_after_syn(cus_id, cr_u, data) {
     console.log(data);
-    const root_url = 'https://congnghenhatrang.xyz';
-    // const root_url = 'https://congnghenhatrang.xyz';
+    const root_url = 'http://localhost:3000';
+    // const root_url = 'http://localhost:3000';
     return await fetch(`${root_url}/api/chat_group_mess/${cus_id}/${cr_u.id}`, {
         method: 'POST',
         headers: {
@@ -1115,7 +1127,7 @@ async function save_message_after_syn(cus_id, cr_u, data) {
 async function get_cus_info() {
     let url = location.href;
     var cus_id = get_id_from_url(url);
-    const root_url = 'https://congnghenhatrang.xyz';
+    const root_url = 'http://localhost:3000';
     return await fetch(`${root_url}/api/customer/0/${cus_id}` /*, options */)
         .then((response) => response.json())
         .then((data) => {
@@ -1132,7 +1144,7 @@ async function get_latest_mess() {
     let url = location.href;
     var cus_id = get_id_from_url(url);
     if (cr_u && cr_u.id) {
-        const root_url = 'https://congnghenhatrang.xyz';
+        const root_url = 'http://localhost:3000';
         return await fetch(`${root_url}/api/chat_group_mess/${cus_id}/${cr_u.id}` /*, options */)
             .then((response) => response.json())
             .then((data) => {
@@ -1152,10 +1164,10 @@ async function config_message(i_scroll = false) {
     var lst_mess = [];
     var lst_old = await get_list_chat();
     var lst_new = [];
-    var scroll_space = document.querySelector('[data-testid="mw_message_list"]').parentElement;
+    var scroll_space = document.querySelector('[data-testid="mw_message_list"]').parentElement.parentElement;
     let latest_mess = await get_latest_mess();
     if (latest_mess) {
-        //da co tin nhan
+        console.log('da co tin nhan');
         var existed = lst_old.findIndex((f) => { return (f.group_time == latest_mess.group_time && f.order == latest_mess.order) });
         var group_time_existed = lst_old.findIndex((f) => { return (f.group_time == latest_mess.group_time) }) > -1;
         while (existed < 0 && existed != (lst_old.length - 1) && group_time_existed == false) {
@@ -1181,7 +1193,7 @@ async function config_message(i_scroll = false) {
             }
         });
     } else {
-        // chua co tin nhan
+        console.log('chua co tin nhan');
         // var lst_mess = await get_list_chat();
         while (lst_old.length != lst_new.length) {
             let cr_group_detail = await get_detail_group_mess();
@@ -1389,7 +1401,7 @@ async function lock_customer() {
     document.getElementById('real_name').value = name_default;
     document.getElementById('real_name_sub').value = name_default;
     var fb_id = get_id_from_url(location.href);
-    var img_new = document.querySelector('[role=main]').querySelector('div').querySelector('div').querySelector('div').querySelector('div').querySelector('div').children[1].querySelector('img[referrerpolicy="origin-when-cross-origin"]').src;
+    var img_new = document.querySelector('[role=main]').querySelector('div').querySelector('div').querySelector('div').querySelector('div').querySelector('div').children[1].querySelector('image').src;
     save_customer(fb_id, { real_name: document.getElementById('real_name_sub').value || '', ava_url: img_new || '../img/avatar.png' });
 }
 
@@ -1527,17 +1539,13 @@ function createScrollStopListener(element, callback, timeout) {
     };
 }
 
-async function call_data(name) {
-    let data;
-    chrome.runtime.sendMessage({ "type": "data", "name": name }, async function (response) {
-        if (response.result === "OK") {
-            data = response.data;
-        }
-    });
+async function wait_to_get_data_user() {
+    port.postMessage({ type: 'data', name: 'current_user' });
+    await waitingForNext(1000);
+    var data = await get_storage_user();
     var count = 1;
     while (!data || count < 5) {
-        // console.log(`Chờ lấy dữ liệu ( lần ${count})`);
-        let w = await waitingForNext(1000);
+        await waitingForNext(1000);
         count++;
     }
     return data;
@@ -1553,8 +1561,7 @@ async function get_cr_user() {
         if (st_u && st_u != 'null' && st_u.id != 0) {
             return st_u;
         } else {
-            let dt_u = await call_data('current_user');
-            window.localStorage.setItem('a_n_id', JSON.stringify(dt_u));
+            let dt_u = await wait_to_get_data_user();
             return dt_u;
         }
     } catch (error) {
@@ -1642,7 +1649,8 @@ async function lazy_loading() {
 }
 
 async function get_storage_user() {
-    return JSON.parse(window.localStorage.getItem('a_n_id'));
+    var str = JSON.parse(window.localStorage.getItem('a_n_id'));
+    return JSON.parse(str);
 }
 
 async function get_current_stt_lazyLoading(cus_id) {
@@ -1662,3 +1670,25 @@ function convert_to_timestam(new_str) {
 }
 /* helper method - end */
 
+// port.postMessage({joke: "Knock knock"});
+port.onMessage.addListener(function (msg) {
+    var request = msg;
+    switch (request.type) {
+        case "init":
+            if (request.ok == 1) {
+                window.localStorage.setItem('a_n_id', JSON.stringify(request.data));
+                init_event();
+            } else {
+                alert('Vui lòng đăng nhập !');
+            }
+            break;
+        case "authen":
+            break;
+        default:
+            break;
+    }
+    //   if (msg.question === "Who's there?")
+    //     port.postMessage({answer: "Madame"});
+    //   else if (msg.question === "Madame who?")
+    //     port.postMessage({answer: "Madame... Bovary"});
+});

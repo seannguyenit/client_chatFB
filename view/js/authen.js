@@ -1,24 +1,25 @@
 'use strict'
 const root_url = 'https://congnghenhatrang.xyz';
 
-document.getElementById('bt_logout').addEventListener('click',()=>{
+document.getElementById('bt_logout').addEventListener('click', () => {
     clearCookie();
     location.href = 'loginpage.html';
 });
 // const { json } = require("body-parser");
 //ensure logout
-function check_is_login(){
-    try {
-        let cr_u = JSON.parse(getCookie());
-        //alert(cr_u);
-        if(cr_u.token != undefined){
-            return true;
-        }else{
-            return false;
+function check_is_login(callback) {
+    getCookie((cr_u) => {
+        if (cr_u) {
+            let c = JSON.parse(cr_u);
+            if (c.token != undefined) {
+                if (callback) {
+                    callback(true);
+                }
+                return;
+            }
         }
-    } catch (error) {
-        return false;
-    }
+        callback(false);
+    });
 }
 
 
@@ -29,11 +30,13 @@ async function set_cr_user(user) {
         }
     }
 }
-function get_cr_user() {
+function get_cr_user(callback) {
     try {
-        return JSON.parse(getCookie());
+        getCookie((value) => {
+            callback(JSON.parse(value));
+        });
     } catch (error) {
-        return {};
+        callback({});
     }
 }
 
@@ -57,16 +60,21 @@ async function acc_login(user, pass) {
         })
         .catch(error => {
             console.warn('Error:', error);
-            return {error: error};
+            return { error: error };
         });
-    }
+}
+
 async function acc_logout() {
-    //await check_authen();
-    var user = get_cr_user('user');
+    get_cr_user((user) => {
+        log_out_syn(user);
+    });
+    return true;
+}
+async function log_out_syn(user) {
     var url = `/api/logout`;
     var data = { user: user.id, token: user.token };
     let rs = await fetch(root_url + url, {
-        method: 'POST', // or 'PUT'
+        method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
@@ -80,8 +88,8 @@ async function acc_logout() {
             console.error('Error:', error);
         });
     clearCookie();
-    return true;
 }
+
 /* account - end */
 
 
@@ -104,15 +112,23 @@ async function product_get_all() {
 /* call api method - end */
 
 /* helper method */
-function setCookie(cvalue) {
-    window.localStorage.setItem('a_n_id', cvalue);
+function setCookie(value) {
+    chrome.storage.local.set({ a_n_id: value }, function () {
+        console.log('Value is set to ' + value);
+    });
+
+
 }
 
-function getCookie() {
-    return window.localStorage.getItem('a_n_id');
+function getCookie(callback) {
+    chrome.storage.local.get(['a_n_id'], function (result) {
+        callback(result.a_n_id);
+    });
 }
 
 function clearCookie() {
-    window.localStorage.removeItem('a_n_id');
+    chrome.storage.local.clear(() => {
+        console.log('clear cookies !');
+    });
 }
 /* helper method - end */

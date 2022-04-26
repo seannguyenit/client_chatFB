@@ -13,7 +13,7 @@ chrome.runtime.onInstalled.addListener((details) => {
     init_menu();
 });
 
-chrome.browserAction.onClicked.addListener(function (tab) {
+chrome.action.onClicked.addListener(function (tab) {
 
     if (tab.url.includes('www.messenger.com/t') || tab.url.includes('www.facebook.com/t')) {
         createControlWindow();
@@ -25,67 +25,56 @@ chrome.browserAction.onClicked.addListener(function (tab) {
 chrome.tabs.onUpdated.addListener(async (tab_id, change_info, tab) => {
     if (!change_info.url) return;
     if (change_info.url.includes('www.messenger.com/t') || change_info.url.includes('www.facebook.com/t')) {
-        let cr_u = await get_cr_user();
-        if (cr_u) {
-            run(tab);
-        } else {
-            chrome.tabs.executeScript(tab.id, {
-                runAt: 'document_end',
-                code: 'alert("Chưa đăng nhập vào tiện ích !")'
-            });
-        }
-    };
-    if (change_info.url.includes('https://congnghenhatrang.xyz/home/user') || change_info.url.includes('http://localhost:3000/home/user')) {
-        chrome.tabs.executeScript(tab.id, {
-            runAt: 'document_end',
-            file: 'support.js'
+        get_cr_user((cr_u) => {
+            if (cr_u && cr_u.hasOwnProperty('id')) {
+                run(tab);
+            } else {
+                chrome.scripting.executeScript(
+                    {
+                        target: { tabId: tab.id },
+                        func: () => {
+                            alert("Chưa đăng nhập vào tiện ích !")
+                        }
+                    });
+            }
         });
-    };
+    }
+    if (change_info.url.includes('http://localhost:3000/home/user') || change_info.url.includes('http://localhost:3000/home/user')) {
+        chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['support.js']
+        });
+    }
 });
 
 async function run(tab) {
     app_stt = 1;
     console.log('Web app chat start !');
 
-    // init_ex();
-    // chrome.tabs.executeScript(tab.id, {
-    //     runAt: 'document_end',
-    //     file: 'view/js/global.js'
-    // });
 
-    chrome.tabs.insertCSS(tab.id, {
-        file: 'view/css/mess.css'
-    });
-    chrome.tabs.executeScript(tab.id, {
-        runAt: 'document_end',
-        file: 'view/js/loading.js'
-    });
-    chrome.tabs.executeScript(tab.id, {
-        runAt: 'document_end',
-        file: 'main.js'
-    });
-
-    // let cr_u = JSON.stringify(await get_cr_user());
-    // var str_u = `window.localStorage.setItem('a_n_id', ${cr_u.toString()});`;
-    // chrome.tabs.executeScript(tab.id, {
-    //     runAt: 'document_end',
-    //     code: str_u
-    // });
-
-    // set_up_environment();
-};
-
-
-function createControlWindow() {
-    var ws = Math.round(window.screen.width * (3 / 5));
-    var hs = Math.round(window.screen.height * (3 / 5));
-    chrome.windows.create({ "type": "popup", "url": "view/loginpage.html", "width": ws, "height": hs }, callbackCreate(window));
-    //chrome.windows.create({ "incognito": true, "type": "normal", "url": "https://www.facebook.com/" }, callbackCreate(window));
+    chrome.scripting.insertCSS(
+        {
+            target: { tabId: tab.id },
+            files: ['view/css/mess.css']
+        });
+    chrome.scripting.executeScript(
+        {
+            target: { tabId: tab.id },
+            files: ['view/js/loading.js']
+        });
+    chrome.scripting.executeScript(
+        {
+            target: { tabId: tab.id },
+            files: ['main.js']
+        });
 }
 
 
-function callbackCreate(window) {
-    // console.log(window.tabs);
+function createControlWindow() {
+    var ws = 600;
+    var hs = 400;
+    chrome.windows.create({ "type": "popup", "url": "view/loginpage.html", "width": ws, "height": hs });
+    //chrome.windows.create({ "incognito": true, "type": "normal", "url": "https://www.facebook.com/" }, callbackCreate(window));
 }
 
 
@@ -111,7 +100,7 @@ function init_menu() {
             contexts: ["all"]
         });
 
-      
+
 
         // chrome.contextMenus.create({
         //     id: syn_chat,
@@ -123,51 +112,53 @@ function init_menu() {
     }
 }
 
-chrome.contextMenus.onClicked.addListener((info, tab) => {
-    switch (info.menuItemId) {
-        case "ex_run_app":
-            run_app(info, tab)
-        case "ex_control_window":
-            createControlWindow()
-        case "ex_create":
-            open_chat_with_cus(info, tab)
-        case "ex_syn_chat":
-            syn_chat(info, tab)
+chrome.contextMenus.onClicked.addListener((info, tab) => run_menu_command(info, tab))
 
-        default:
-            break;
-    }
-    // console.log(info);
-})
+async function run_menu_command(info, tab) {
+    get_cr_user((cr_u) => {
+        if (!cr_u.hasOwnProperty('id')) {
+            chrome.scripting.executeScript(
+                {
+                    target: { tabId: tab.id },
+                    func: () => {
+                        alert("Chưa đăng nhập vào tiện ích !")
+                    }
+                });
+            return;
+        }
+        switch (info.menuItemId) {
+            case "ex_run_app":
+                run_app(info, tab)
+                break;
+            case "ex_control_window":
+                createControlWindow()
+                break;
+            case "ex_create":
+                open_chat_with_cus(info, tab, cr_u)
+                break;
+            case "ex_syn_chat":
+                syn_chat(info, tab)
+                break;
+            default:
+                break;
+        }
+    });
+
+}
+
 async function run_app(info, tab) {
     run(tab);
 }
-async function open_chat_with_cus(info, tab) {
+async function open_chat_with_cus(info, tab, cr_u) {
     var url = info.pageUrl;
     if (url) {
         if (url.includes('www.messenger.com/t') || url.includes('www.facebook.com/t')) {
             var cus_obj = await get_id_from_url(url);
-            // var send_obj = await get_id_from_url(info.pageUrl);
-            // if (cus_obj.img.length > 0 && cus_obj.img.indexOf('localhost') > -1) {
             cus_obj.img = '../img/avatar.png';
             //}
-            let check_detail_rs = await create_detail_group_mess(cus_obj.userID, cus_obj.userVanity, '', '', cus_obj.img);
-            // let w1 = await waitingForNext(1000);
-            let cr_u = await get_cr_user();
-            if (cr_u) {
-                run(tab);
-            } else {
-                chrome.tabs.executeScript(tab.id, {
-                    runAt: 'document_end',
-                    code: 'alert("Chưa đăng nhập vào tiện ích !")'
-                });
-            }
-        };
-        // if (check_detail_rs) {
-        //     chrome.tabs.create({ "active": true, "url": `https://www.messenger.com/t/${cus_obj.userID}` }, (tab) => {
-
-        //     });
-        // }
+            let check_detail_rs = await create_detail_group_mess(cus_obj.userID, cus_obj.userVanity, '', '', cus_obj.img, cr_u);
+            run(tab);
+        }
     }
 }
 
@@ -236,34 +227,31 @@ async function syn_chat(info, tab) {
     // console.log(info);
 }
 
-async function create_detail_group_mess(cus_id, cus_name, send_id, send_name, cus_ava) {
-    let cr_u = await get_cr_user();
-    if (cr_u && cr_u.id) {
-        var obj = { user_id: cr_u.id, cus_id: cus_id, cus_name: cus_name, send_id: send_id, send_name: send_name, cus_ava: cus_ava };
-        const root_url = 'https://congnghenhatrang.xyz';
-        return await fetch(`${root_url}/api/chat_group_create`, {
-            method: 'POST', // or 'PUT'
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(obj)
-        } /*, options */)
-            .then((response) => response.json())
-            .then((data) => {
-                if (data != undefined) {
-                    return data;
-                }
-                //covertTrueFalse(tb, 6, 'Hiện', 'Ẩn');
-            })
-            .catch((error) => {
-                console.log(error);
-                alert('Không thể kết nối máy chủ !')
-            });
-    }
+async function create_detail_group_mess(cus_id, cus_name, send_id, send_name, cus_ava, cr_u) {
+    var obj = { user_id: cr_u.id, cus_id: cus_id, cus_name: cus_name, send_id: send_id, send_name: send_name, cus_ava: cus_ava };
+    const root_url = 'http://localhost:3000';
+    var dt_gr = await fetch(`${root_url}/api/chat_group_create`, {
+        method: 'POST', // or 'PUT'
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(obj)
+    } /*, options */)
+        .then((response) => response.json())
+        .then((data) => {
+            if (data != undefined) {
+                return data;
+            }
+        })
+        .catch((error) => {
+            console.log(error);
+            alert('Không thể kết nối máy chủ !')
+        });
+    return dt_gr;
 }
 
 async function save_customer(fb_id, data) {
-    const root_url = 'https://congnghenhatrang.xyz';
+    const root_url = 'http://localhost:3000';
     return await fetch(`${root_url}/api/customer_details/${fb_id}`, {
         method: 'PUT', // or 'PUT'
         headers: {
@@ -280,30 +268,21 @@ async function save_customer(fb_id, data) {
         });
 }
 
-// function check_authen() {
-//     try {
-//         let cr_u = JSON.parse(getCookie('user'));
-//         //alert(cr_u);
-//         if (cr_u.token == undefined) {
-//             location.href = '/login';
-//         }
-//     } catch (error) {
-//         location.href = '/login';
-//     }
-// }
-
-
-function getCookie() {
-    return window.localStorage.getItem('a_n_id');
+function getCookie(cb) {
+    chrome.storage.local.get(['a_n_id'], function (result) {
+        cb(result.a_n_id);
+    });
 }
 
 
-async function get_cr_user() {
-    try {
-        return JSON.parse(getCookie());
-    } catch (error) {
-        return {};
-    }
+function get_cr_user(callback) {
+    getCookie((value) => {
+        if (value) {
+            callback(JSON.parse(value));
+        } else {
+            callback({});
+        }
+    });
 }
 
 chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
@@ -311,20 +290,14 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
         switch (request.type) {
             case "data":
                 if (request.name == 'current_user') {
-                    let data = await get_cr_user();
-                    sendResponse({ result: "OK", data: data });
+                    // var data = await getCookie();
+                    // sendResponse({ result: "OK", data: data });
                 } else if (request.name == 'save_cus') {
                     let fb_id = request.data.fb_id;
                     let data = request.data.obj;
                     save_customer(fb_id, data);
                 } else if (request.name == 'get_fb_info') {
-                    let url = request.data.url;
-                    let data = await get_id_from_url(url);
-                    if (!data.img) {
-                        prepare_to_get_img_in_open_direct(url, sender.tab.id);
-                    }
-                    chrome.tabs.sendMessage(sender.tab.id, { type: 'fb_info', data: data })
-                    // sendResponse({ result: "OK", data: data });
+                    get_fb_info_action(request, sender);
                 } else if (request.name == 'get_img') {
                     let data = request.data;
                     if (waiting_tag_id) {
@@ -332,6 +305,9 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
                     }
                     chrome.tabs.remove(sender.tab.id);
                 }
+                break;
+            case "command":
+                break;
             default:
                 break;
         }
@@ -340,6 +316,15 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
         sendResponse({ result: "Fail" });
     }
 });
+
+async function get_fb_info_action(request, sender) {
+    let url = request.data.url;
+    let data = await get_id_from_url(url);
+    if (!data.img) {
+        prepare_to_get_img_in_open_direct(url, sender.tab.id);
+    }
+    chrome.tabs.sendMessage(sender.tab.id, { type: 'fb_info', data: data });
+}
 
 function prepare_to_get_img_in_open_direct(url, tag_id) {
     waiting_tag_id = tag_id;
@@ -355,12 +340,13 @@ function prepare_to_get_img_in_open_direct(url, tag_id) {
     );
 }
 
-async function run_get_img(id){
-    let w = await waitingForNext(2000);
-    chrome.tabs.executeScript(id,{
-        runAt: 'document_end',
-        file: 'get_img.js'
-    });
+async function run_get_img(id) {
+    await waitingForNext(2000);
+    chrome.scripting.executeScript(
+        {
+            target: { tabId: id },
+            files: ['get_img.js']
+        });
 }
 
 
@@ -375,3 +361,50 @@ async function waitingForNext(time) {
     // console.log('waiting...')
     let delayres = await delay(time);
 }
+
+chrome.runtime.onConnect.addListener(function (port) {
+    var res = { type: '', ok: 0, data: undefined, error: '' };
+    console.assert(port.name === "connect_chat_app");
+    port.onMessage.addListener(function (msg) {
+        var request = msg;
+        try {
+            switch (request.type) {
+                case "data":
+                    if (request.name == 'init') {
+                        getCookie((d) => {
+                            res.ok = 1;
+                            res.data = d;
+                            res.type = 'init'
+                            port.postMessage(res);
+                        });
+                    } else if (request.name == 'save_cus') {
+                        let fb_id = request.data.fb_id;
+                        let data = request.data.obj;
+                        save_customer(fb_id, data);
+                    } else if (request.name == 'get_fb_info') {
+                        get_fb_info_action(request, sender);
+                    } else if (request.name == 'get_img') {
+                        let data = request.data;
+                        if (waiting_tag_id) {
+                            chrome.tabs.sendMessage(waiting_tag_id, { type: 'fb_img', data: data });
+                        }
+                        chrome.tabs.remove(sender.tab.id);
+                    }
+                    break;
+                case "command":
+                    break;
+                default:
+                    break;
+            }
+        } catch (error) {
+            console.log(error);
+            port.postMessage({ result: "Fail" });
+        }
+        // if (msg.joke === "Knock knock")
+        //     port.postMessage({ question: "Who's there?" });
+        // else if (msg.answer === "Madame")
+        //     port.postMessage({ question: "Madame who?" });
+        // else if (msg.answer === "Madame... Bovary")
+        //     port.postMessage({ question: "I don't get it." });
+    });
+});
