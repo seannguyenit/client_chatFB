@@ -1,6 +1,8 @@
 'use strict'
 let app_stt = 0;
 var waiting_tag_id;
+var port_running = [];
+var lazy_load_flag = 0;
 // var menu_context = [];
 
 
@@ -24,26 +26,29 @@ chrome.action.onClicked.addListener(function (tab) {
 });
 chrome.tabs.onUpdated.addListener(async (tab_id, change_info, tab) => {
     if (!change_info.url) return;
-    if (change_info.url.includes('www.messenger.com/t') || change_info.url.includes('www.facebook.com/t')) {
-        get_cr_user((cr_u) => {
-            if (cr_u && cr_u.hasOwnProperty('id')) {
-                run(tab);
-            } else {
-                chrome.scripting.executeScript(
-                    {
-                        target: { tabId: tab.id },
-                        func: () => {
-                            alert("Chưa đăng nhập vào tiện ích !")
-                        }
-                    });
-            }
-        });
-    }
-    if (change_info.url.includes('http://localhost:3000/home/user') || change_info.url.includes('http://localhost:3000/home/user')) {
-        chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            files: ['support.js']
-        });
+    if (change_info.status == 'loading') {
+        await waitingForNext(2000);
+        if (tab.url.includes('www.messenger.com/t') || tab.url.includes('www.facebook.com/t')) {
+            get_cr_user((cr_u) => {
+                if (cr_u && cr_u.hasOwnProperty('id')) {
+                    run(tab);
+                } else {
+                    chrome.scripting.executeScript(
+                        {
+                            target: { tabId: tab.id },
+                            func: () => {
+                                alert("Chưa đăng nhập vào tiện ích !")
+                            }
+                        });
+                }
+            });
+        }
+        if (tab.url.includes('https://congnghenhatrang.xyz/home/user') || tab.url.includes('http://localhost:3000/home/user')) {
+            chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                files: ['support.js']
+            });
+        }
     }
 });
 
@@ -289,14 +294,7 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
     try {
         switch (request.type) {
             case "data":
-                if (request.name == 'current_user') {
-                    // var data = await getCookie();
-                    // sendResponse({ result: "OK", data: data });
-                } else if (request.name == 'save_cus') {
-                    let fb_id = request.data.fb_id;
-                    let data = request.data.obj;
-                    save_customer(fb_id, data);
-                } else if (request.name == 'get_fb_info') {
+                if (request.name == 'get_fb_info') {
                     get_fb_info_action(request, sender);
                 } else if (request.name == 'get_img') {
                     let data = request.data;
@@ -362,9 +360,37 @@ async function waitingForNext(time) {
     let delayres = await delay(time);
 }
 
+function update_port(port) {
+    if (!port_running) return;
+    if (!(port_running.find(f => { return f.sender.tab.id == port.sender.tab.id }))) {
+        port_running.push(port);
+    }
+    if (lazy_load_flag == 1) return;
+    lazy_loading();
+}
+
+
+
+async function lazy_loading() {
+    while ((port_running) && port_running.length > 0) {
+        await waitingForNext(5000);
+        port_running.forEach(async (port) => {
+            try {
+                console.log('lazy loading: ', port.sender);
+                var res = { type: '', ok: 0, data: undefined, error: '' };
+                res.type = 'lazy_load';
+                port.postMessage(res);
+            } catch (error) {
+                console.log(error);
+            }
+        });
+    }
+}
+
 chrome.runtime.onConnect.addListener(function (port) {
     var res = { type: '', ok: 0, data: undefined, error: '' };
-    console.assert(port.name === "connect_chat_app");
+    console.log('Port receive: ', port.sender);
+    // console.assert(port.name === "connect_chat_app");
     port.onMessage.addListener(function (msg) {
         var request = msg;
         try {
@@ -375,6 +401,13 @@ chrome.runtime.onConnect.addListener(function (port) {
                             res.ok = 1;
                             res.data = d;
                             res.type = 'init'
+                            port.postMessage(res);
+                        });
+                    } else if (request.name == 'current_user') {
+                        getCookie((d) => {
+                            res.ok = 1;
+                            res.data = d;
+                            res.type = 'save_user'
                             port.postMessage(res);
                         });
                     } else if (request.name == 'save_cus') {
@@ -392,6 +425,9 @@ chrome.runtime.onConnect.addListener(function (port) {
                     }
                     break;
                 case "command":
+                    if (request.name == 'connect') {
+                        update_port(port);
+                    }
                     break;
                 default:
                     break;

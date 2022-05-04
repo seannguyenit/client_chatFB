@@ -1,7 +1,7 @@
 'use strict'
 // var cr_url = "";
-
-var port = chrome.runtime.connect({ name: "connect_chat_app" });
+var first_run_flag = 0;
+var port = chrome.runtime.connect({ name: get_id_from_url(location.url) });
 
 port.postMessage({ type: 'data', name: 'init' });
 
@@ -255,7 +255,7 @@ async function set_up_environment() {
         document.getElementById('real_name_sub').addEventListener('focusout', async () => {
             document.getElementById('real_name').value = document.getElementById('real_name_sub').value;
             var fb_id = get_id_from_url(location.href);
-            var img_new = document.querySelector('[role=main]').querySelector('div').querySelector('div').querySelector('div').querySelector('div').querySelector('div').children[1].querySelector('img[referrerpolicy="origin-when-cross-origin"]').src;
+            var img_new = document.querySelector('[role=main]').querySelector('div').querySelector('div').querySelector('div').querySelector('div').querySelector('div').children[1].querySelector('image').src;
             save_customer(fb_id, { real_name: document.getElementById('real_name_sub').value || '', ava_url: img_new || '../img/avatar.png' });
         });
 
@@ -316,7 +316,7 @@ async function set_up_environment() {
             var cus_phone = document.getElementById('phone').value;
             var cus_address = document.getElementById('address').value;
             var cus_city = document.getElementById('city').value;
-            var img_new = document.querySelector('[role=main]').querySelector('div').querySelector('div').querySelector('div').querySelector('div').querySelector('div').children[1].querySelector('img[referrerpolicy="origin-when-cross-origin"]').src;
+            var img_new = document.querySelector('[role=main]').querySelector('div').querySelector('div').querySelector('div').querySelector('div').querySelector('div').children[1].querySelector('image').src;
             var fb_id = get_id_from_url(location.href);
             var bill_code = document.getElementById('bill_code').value;
             var trade_code = document.getElementById('trade_code').value;
@@ -1085,21 +1085,12 @@ async function tag_name_get_all() {
 }
 async function sync_message(data_param) {
     var data = data_param.js_data;
-    const max_ = 100;
+    var latest_time = data_param.latest_time;
     let cr_u = await get_cr_user();
     let url = location.href;
     var cus_id = get_id_from_url(url);
     if (cr_u && cr_u.id) {
-        // var arr_data = [];
-        // var max_t = Math.floor(data.length / max_);
-        // for (let i = 0; i < max_t + 1; i++) {
-        //     var temp_arr = Array.prototype.slice.call(data, max_ * i, (max_ * i) + max_);
-        //     arr_data.push(temp_arr);
-        // }
-        // arr_data.forEach(async (d) => {
-        // await save_message_after_syn(cus_id, cr_u, { js_data: d });
-        // });
-        await save_message_after_syn(cus_id, cr_u, { js_data: data });
+        await save_message_after_syn(cus_id, cr_u, { js_data: data, latest_time: latest_time });
 
     }
 }
@@ -1161,6 +1152,7 @@ async function get_latest_mess() {
 }
 
 async function config_message(i_scroll = false) {
+    first_run_flag = 1;
     var lst_mess = [];
     var lst_old = await get_list_chat();
     var lst_new = [];
@@ -1168,33 +1160,19 @@ async function config_message(i_scroll = false) {
     let latest_mess = await get_latest_mess();
     if (latest_mess) {
         console.log('da co tin nhan');
-        var existed = lst_old.findIndex((f) => { return (f.group_time == latest_mess.group_time && f.order == latest_mess.order) });
-        var group_time_existed = lst_old.findIndex((f) => { return (f.group_time == latest_mess.group_time) }) > -1;
-        while (existed < 0 && existed != (lst_old.length - 1) && group_time_existed == false) {
-            let cr_group_detail = await get_detail_group_mess();
-
-            if (!cr_group_detail) {
-                return;
-            }
+        var existed = lst_old.findIndex((f) => { return f.group_time == latest_mess.group_time });
+        while (existed < 0) {
             scroll_space.scrollTop = 0;
-            let w = await waitingForNext(2000);
+            await waitingForNext(2000);
             lst_old = await get_list_chat();
-            existed = lst_old.findIndex((f) => { return (f.group_time == latest_mess.group_time && f.order == latest_mess.order) });
-            // console.log(existed);
+            existed = lst_old.findIndex((f) => { return (f.group_time == latest_mess.group_time) });
         }
         if (i_scroll == false) {
             scroll_space.scrollTop = scroll_space.scrollHeight;
         }
-        lst_new = lst_old.slice(existed + 1);
-        lst_new.forEach((fe) => {
-            if (fe.group_time == latest_mess.group_time) {
-                fe.order = fe.order + latest_mess.order;
-                fe.mess_index = latest_mess.mess_index + lst_new.indexOf(fe) + 1;
-            }
-        });
+        lst_new = lst_old.filter(fil => { return fil.group_time >= latest_mess.group_time });
     } else {
         console.log('chua co tin nhan');
-        // var lst_mess = await get_list_chat();
         while (lst_old.length != lst_new.length) {
             let cr_group_detail = await get_detail_group_mess();
 
@@ -1202,7 +1180,7 @@ async function config_message(i_scroll = false) {
                 return;
             }
             scroll_space.scrollTop = 0;
-            let w2 = await waitingForNext(2000);
+            await waitingForNext(2000);
             lst_old = lst_new;
             lst_new = await get_list_chat();
             // console.log(`${lst_old.length} - ${lst_new.length}`)
@@ -1212,45 +1190,23 @@ async function config_message(i_scroll = false) {
         }
     }
     lst_mess = lst_new;
-    //console.log(lst_mess);
     if (lst_mess && lst_mess.length > 0) {
-        let cr_group_detail = await get_detail_group_mess();
-
-        if (!cr_group_detail) {
-            return;
-        }
-        await sync_message({ js_data: lst_mess });
+        await sync_message({ js_data: lst_mess, latest_time: ((latest_mess) ? latest_mess.group_time : 0) });
     }
+    first_run_flag = 0;
 }
 
 async function config_message_current() {
-    let w = await waitingForNext(5000);
+    if (first_run_flag == 1) return;
     var lst_mess = [];
     var lst_old = await get_list_chat_current_group_time();
     var lst_new = [];
     let latest_mess = await get_latest_mess();
     if (latest_mess) {
-        var existed = 0;
-        //lst_old = await get_list_chat_current_group_time();
-        existed = lst_old.findIndex((f) => { return (f.group_time == latest_mess.group_time && f.order == latest_mess.order) });
-        // if(existed == -1){
-        //     lst_new = lst_old;
-        // }else{
-        lst_new = lst_old.slice(existed + 1);
-        // }
-        lst_new.forEach((fe) => {
-            if (fe.group_time == latest_mess.group_time) {
-                fe.order = fe.order + latest_mess.order;
-                fe.mess_index = latest_mess.mess_index + lst_new.indexOf(fe) + 1;
-                fe.mess_key = removeVietnameseTones(fe.mes, false);
-            }
-        });
+        lst_new = lst_old.filter(fil => { return fil.group_time >= latest_mess.group_time });
         lst_mess = lst_new;
-        if (lst_mess) {
-            await sync_message({ js_data: lst_mess });
-            document.querySelectorAll('[data-is_checking]').forEach((ele) => {
-                ele.dataset.is_checking = '0';
-            });
+        if (lst_mess && lst_mess.length > 0) {
+            await sync_message({ js_data: lst_mess, latest_time: lst_new[0].group_time });
         }
     }
 }
@@ -1260,13 +1216,6 @@ async function config_message_current() {
  * @returns list all chat mess (can be change after scroll)
  */
 async function get_list_chat() {
-    // let cr_group_detail = await get_detail_group_mess();
-
-    // if (!cr_group_detail) {
-    //     return;
-    // }
-    // var cus_is_str = get_id_from_url(window.location.href);
-    // var cr_stt = await get_current_stt_lazyLoading(cus_is_str);
     if (!document.querySelector('[data-testid="mw_message_list"]')) {
         return [];
     }
@@ -1286,11 +1235,15 @@ async function get_list_chat() {
             if (sl_row.querySelector('[data-scope=date_break]')) {
                 gr = sl_row.querySelector('[data-scope=date_break]').innerText;
                 order = 0;
-                // console.log(sl_row.innerText);
             } else {
-                // new_item.mess_index = i;
-                new_item.group_time = replace_day_with_date(gr);
-                new_item.group_name = removeVietnameseTones(gr || '');
+                var str_ex = '';
+                if (check_vi_lang()) {
+                    str_ex = replace_day_with_date(gr);
+                } else {
+                    str_ex = replace_day_with_date_en(gr);
+                }
+                new_item.group_time = convert_to_timestam(str_ex);
+                new_item.group_name = (str_ex || '');
                 var text_container = sl_row.querySelector('[data-testid=message-container]');
                 if (text_container) {
 
@@ -1301,6 +1254,9 @@ async function get_list_chat() {
                     }
                     new_item.mes = text_container.children[0].innerText;
                     new_item.mess_key = removeVietnameseTones(new_item.mes, false);
+                    if (text_container.querySelector('svg')) {
+                        new_item.icon = text_container.querySelector('svg').outerHTML;
+                    }
                     if (text_container.querySelector('img')) {
                         var lst_img = [];
                         text_container.querySelectorAll('img').forEach((f) => {
@@ -1313,9 +1269,11 @@ async function get_list_chat() {
                     }
                     new_item.order = order;
                     // console.log(text_container);
-                    if (new_item.mes.length > 0 || (new_item.img_src && new_item.img_src.length > 0) || (new_item.file && new_item.file.length > 0)) {
+                    if (new_item.mes.length > 0 || (new_item.img_src && new_item.img_src.length > 0) || (new_item.file && new_item.file.length > 0) || (new_item.icon && new_item.icon.length > 0)) {
                         lst_mess.push(new_item);
                         order++;
+                    } else {
+                        console.log('Không lấy được tin nhắn: ', new_item);
                     }
                 }
             }
@@ -1325,17 +1283,13 @@ async function get_list_chat() {
             lst_mess.forEach(r => { r.mess_index = lst_mess.indexOf(r) + 1 });
             return lst_mess;
         }
-        let wt_img = await waitingForNext(1000);
+        await waitingForNext(1000);
     }
 
-    //get date_break
-    //.querySelector('[data-scope=date_break]')
+}
 
-    // get message container
-    //.querySelector('[data-testid=message-container]')
-
-    //rl25f0pe from me
-
+function check_vi_lang() {
+    return (document.querySelector('input').ariaLabel != 'Search Messenger');
 }
 
 async function get_list_chat_current_group_time() {
@@ -1344,54 +1298,62 @@ async function get_list_chat_current_group_time() {
     }
     //list chat (change after scroll)
     var list_chat = document.querySelector('[data-testid="mw_message_list"]').querySelectorAll('[role=row]');
-    var current_group_element = Array.prototype.slice.call(document.querySelector('[data-testid="mw_message_list"]').querySelectorAll('[data-scope=date_break]'), -1)[0];
-    var select = current_group_element.closest('[role=row]');
-    var index_select = Array.prototype.indexOf.call(list_chat, select);
-    list_chat = Array.prototype.slice.call(list_chat, index_select);
 
-    var order_l = Array.prototype.filter.call(list_chat, (ft) => { return ft.dataset.is_checking == '1' }).length;
-    list_chat = Array.prototype.filter.call(list_chat, (ft) => { return ft.dataset.is_checking != '1' });
     var lst_mess = [];
 
     var gr = "";
-    var order = order_l || 0;
+    var order = 0;
 
     for (var i = 0; i < list_chat.length; i++) {
         var sl_row = list_chat[i];
-        sl_row.dataset.is_checking = '1';
         var new_item = {};
         if (sl_row.querySelector('[data-scope=date_break]')) {
             gr = sl_row.querySelector('[data-scope=date_break]').innerText;
-            // console.log(sl_row.innerText);
             order = 0;
         } else {
-            new_item.group_time = replace_day_with_date(gr);
-            new_item.group_name = removeVietnameseTones(gr || '');
-            var text_container = sl_row.querySelector('[data-testid=message-container]');
-            if (text_container.classList.contains('rl25f0pe')) {
-                new_item.sender = "1";
+            var str_ex = '';
+            if (check_vi_lang()) {
+                str_ex = replace_day_with_date(gr);
             } else {
-                new_item.sender = "0";
+                str_ex = replace_day_with_date_en(gr);
             }
-            new_item.mes = text_container.children[0].innerText;
-            if (text_container.querySelector('img')) {
-                var lst_img = [];
-                text_container.querySelectorAll('img').forEach((f) => {
-                    lst_img.push(f.src);
-                });
-                new_item.img_src = lst_img.join(',');
+            new_item.group_time = convert_to_timestam(str_ex);
+            new_item.group_name = (str_ex || '');
+            var text_container = sl_row.querySelector('[data-testid=message-container]');
+            if (text_container) {
+
+                if (text_container.classList.contains('rl25f0pe')) {
+                    new_item.sender = "1";
+                } else {
+                    new_item.sender = "0";
+                }
+                new_item.mes = text_container.children[0].innerText;
+                new_item.mess_key = removeVietnameseTones(new_item.mes, false);
+                if (text_container.querySelector('svg')) {
+                    new_item.icon = text_container.querySelector('svg').outerHTML;
+                }
+                if (text_container.querySelector('img')) {
+                    var lst_img = [];
+                    text_container.querySelectorAll('img').forEach((f) => {
+                        lst_img.push(f.src);
+                    });
+                    new_item.img_src = lst_img.join(',');
+                }
+                if (text_container.querySelector('a') && text_container.querySelector('a').hasAttribute('download')) {
+                    new_item.file = text_container.querySelector('a').href;
+                }
+                new_item.order = order;
+                // console.log(text_container);
+                if (new_item.mes.length > 0 || (new_item.img_src && new_item.img_src.length > 0) || (new_item.file && new_item.file.length > 0) || (new_item.icon && new_item.icon.length > 0)) {
+                    lst_mess.push(new_item);
+                    order++;
+                }
             }
-            if (text_container.querySelector('a') && text_container.querySelector('a').hasAttribute('download')) {
-                new_item.file = text_container.querySelector('a').href;
-            }
-            new_item.order = order;
-            // console.log(text_container);
-            lst_mess.push(new_item);
-            order++;
         }
     }
-
-
+    var max_section = Math.max(...(lst_mess.map(m => m.group_time)));
+    lst_mess = lst_mess.filter((f) => { return (!((f.img_src) && (f.img_src.indexOf('blob:') > -1))) && f.group_time == max_section });
+    lst_mess.forEach(r => { r.mess_index = lst_mess.indexOf(r) + 1 });
     return lst_mess;
 
 }
@@ -1436,50 +1398,115 @@ function removeVietnameseTones(str, includes_sp = true) {
     return str;
 }
 
+/**
+ * convert all text to form "11/19/21, 9:30 PM"
+ * @param {day text} str 
+ * @returns 
+ */
+function replace_day_with_date_en(str) {
+    var m_arr = [
+        { name: 'Jan', value: 1 },
+        { name: 'Feb', value: 2 },
+        { name: 'Mar', value: 3 },
+        { name: 'Apr', value: 4 },
+        { name: 'May', value: 5 },
+        { name: 'Jun', value: 6 },
+        { name: 'Jul', value: 7 },
+        { name: 'Aug', value: 8 },
+        { name: 'Sep', value: 9 },
+        { name: 'Oct', value: 10 },
+        { name: 'Nov', value: 11 },
+        { name: 'Dec', value: 12 }
+    ];
+    var w_arr = [
+        { name: 'Mon', value: 1 },
+        { name: 'Tue', value: 2 },
+        { name: 'Wed', value: 3 },
+        { name: 'Thu', value: 4 },
+        { name: 'Fri', value: 5 },
+        { name: 'Sat', value: 6 },
+        { name: 'Sun', value: 0 },
+    ]
+    var is_pm = (str.indexOf('PM') > -1);
+    var now = new Date();
+    var time = str.split(' ').at(str.split(' ').length - 2);
+    var hour_ = Number(time.split(':')[0]);
+    var min = Number(time.split(':')[1]);
+    if (is_pm) {
+        hour_ += 12;
+    }
+    if (str.indexOf('/') > -1) {
+        var d1 = str.split(', ')[0];
+        var dl = `${d1.split('/')[1]}-${d1.split('/')[0]}-20${d1.split('/')[2]}`
+        return String.prototype.concat.call(dl, ' ', hour_, ':', min);
+    } else {
+        var day_t = 0;
+        var d = now.getDay();
+        var w_vl = w_arr.find(f => { return str.includes(f.name) });
+        if (w_vl) {
+            day_t = 7 + d - w_vl.value;
+        }
+        var m_vl = m_arr.find(f => { return str.includes(f.name) });
+        if (m_vl) {
+            mm = m_vl.value;
+        }
+        if (day_t > 7) day_t = day_t - 7;
+        now = addDays(now, (0 - day_t));
+        d = now.getDate();
+        var y = now.getFullYear();
+        var mm = now.getMonth() + 1;
+        return `${d}-${mm}-${y} ${hour_}:${min}`;
+    }
+}
+
 function replace_day_with_date(str) {
     var now = new Date();
     var day_t = 0;
-    var time;
     var d = now.getDay();
-    // var h = now.getHours();
-    // var m = now.getMinutes();
+    var w_arr = [
+        { name: 'T2', value: 1 },
+        { name: 'T3', value: 2 },
+        { name: 'T4', value: 3 },
+        { name: 'T5', value: 4 },
+        { name: 'T6', value: 5 },
+        { name: 'T7', value: 6 },
+        { name: 'CN', value: 0 },
+    ]
+
+    if (str.indexOf('/') > -1) {
+        return str.split(', ').reverse().join(' ');
+    }
+    if (str.includes('Tháng')) {
+        //15:04, 4 Tháng 2, 2022
+        var time_str = str.split(', ')[0];
+        var year_str = str.split(', ')[2];
+        var d_str = str.split(', ')[1].split(' ')[0];
+        var m_str = str.split(', ')[1].split(' ')[2];
+        return d_str + '/' + m_str + '/' + year_str + ' ' + time_str;
+    }
+
     if (str.includes('T2')) {
-        str = str.replace('T2 ', '');
         day_t = 7 + d - 1;
     } else if (str.includes('T3')) {
-        str = str.replace('T3 ', '');
         day_t = 7 + d - 2;
     } else if (str.includes('T4')) {
-        str = str.replace('T4 ', '');
         day_t = 7 + d - 3;
     } else if (str.includes('T5')) {
-        str = str.replace('T5 ', '');
         day_t = 7 + d - 4;
     } else if (str.includes('T6')) {
-        str = str.replace('T6 ', '');
         day_t = 7 + d - 5;
     } else if (str.includes('T7')) {
-        str = str.replace('T7 ', '');
         day_t = 7 + d - 6;
     } else if (str.includes('CN')) {
-        str = str.replace('CN ', '');
         day_t = 7 + d - 0;
-    } else if (str.includes('Tháng')) {
-        time = str.substring(0, 5);
-        str = str.substring(str.indexOf(',') + 2, str.length).replace(' Tháng ', '-').replace(', ', '-') + ' ' + time;
-        return convert_to_timestam(str);
     }
     if (day_t > 7) day_t = day_t - 7;
     now = addDays(now, (0 - day_t));
     var y = now.getFullYear();
     var mm = now.getMonth() + 1;
     d = now.getDate();
-    if (str.length == 5) {
-        time = str;
-    } else {
-        time = str.substring(str.length - 5, str.length);
-    }
-    return convert_to_timestam(`${d}-${mm}-${y} ${str}`);
+    var t_str = str.split(' ')[str.split(' ').length - 1];
+    return `${d}/${mm}/${y} ${t_str}`;
 }
 
 
@@ -1552,7 +1579,7 @@ async function wait_to_get_data_user() {
 }
 
 async function call_data_no_waiting(name, data) {
-    chrome.runtime.sendMessage({ "type": "data", "name": name, "data": data });
+    port.postMessage({ "type": "data", "name": name, "data": data });
 }
 
 async function get_cr_user() {
@@ -1637,15 +1664,7 @@ async function lazy_loading() {
     if (!cr_group_detail) {
         return;
     }
-    while (true) {
-        let cr_group_detail = await get_detail_group_mess();
-
-        if (!cr_group_detail) {
-            return;
-        }
-        var w = await waitingForNext(5000);
-        await config_message(true);
-    }
+    await config_message_current();
 }
 
 async function get_storage_user() {
@@ -1663,6 +1682,11 @@ async function set_current_stt_lazyLoading(stt = 1) {
     return window.localStorage.setItem('str', JSON.stringify({ stt: stt, url: window.location.href }));
 }
 
+/**
+ * 
+ * @param { 'dd-m-yyyy hh:MM'} new_str 
+ * @returns 
+ */
 function convert_to_timestam(new_str) {
     //'20-1-2022 17:45' new_str
     new_str = new_str.split(', ')[0];
@@ -1676,13 +1700,23 @@ port.onMessage.addListener(function (msg) {
     switch (request.type) {
         case "init":
             if (request.ok == 1) {
+                on_loading();
                 window.localStorage.setItem('a_n_id', JSON.stringify(request.data));
                 init_event();
+                port.postMessage({ type: 'command', name: 'connect' });
             } else {
                 alert('Vui lòng đăng nhập !');
             }
             break;
+        case "lazy_load":
+            lazy_loading();
+            break;
         case "authen":
+            break;
+        case "save_user":
+            if (request.ok == 1) {
+                window.localStorage.setItem('a_n_id', JSON.stringify(request.data));
+            }
             break;
         default:
             break;
